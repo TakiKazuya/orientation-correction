@@ -1,4 +1,4 @@
-use opencv::core::{BORDER_CONSTANT, Mat, MatTrait, MatTraitManual, Point2f, Scalar, Size, Vector};
+use opencv::core::{BORDER_CONSTANT, MatTrait, MatTraitManual, Point2f, Scalar, Size, Vector};
 use opencv::imgcodecs::{imread, IMREAD_GRAYSCALE, imwrite};
 use opencv::imgproc::{get_rotation_matrix_2d, warp_affine, WARP_INVERSE_MAP};
 use opencv::text::{OEM_DEFAULT, PSM_AUTO};
@@ -16,6 +16,7 @@ fn main() {
     let width = src_img.cols();
     let height = src_img.rows();
     let center = Point2f::new((width/2) as f32, (height/2) as f32);
+    let size = Size::new(width, height);
 
     let mut angle = 0.0;
     let mut max_chars_count = 0;
@@ -32,8 +33,6 @@ fn main() {
                 panic!("{}", code)
             }
         }
-
-        let size = Size::new(width, height);
 
         let mut dst_img = src_img.clone();
         let result_affine = warp_affine(&src_img, &mut dst_img, &matrix, size, WARP_INVERSE_MAP, BORDER_CONSTANT, Scalar::default());
@@ -59,4 +58,28 @@ fn main() {
     }
 
     println!("認識できた文字数が最も多かった角度: {}, 認識した文字数: {}", angle_at_max, max_chars_count);
+
+    let result_img = if angle_at_max != 0.0 {
+        println!("{}°回転します。", angle_at_max);
+        let matrix;
+        let result_get_rotation_matrix_2d = get_rotation_matrix_2d(center, angle_at_max, 1.0);
+        match result_get_rotation_matrix_2d {
+            Ok(m) => matrix = m,
+            Err(code) => {
+                panic!("{}", code)
+            }
+        }
+
+        let mut dst_img = src_img.clone();
+        let result_affine = warp_affine(&src_img, &mut dst_img, &matrix, size, WARP_INVERSE_MAP, BORDER_CONSTANT, Scalar::default());
+        if let Err(code) = result_affine {
+            panic!("{}", code)
+        }
+        dst_img
+    } else {
+        println!("回転の必要がありません。");
+        src_img
+    };
+
+    imwrite("result.png", &result_img, &Vector::new()).ok();
 }
