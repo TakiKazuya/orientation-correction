@@ -1,6 +1,10 @@
-use opencv::core::{BORDER_CONSTANT, MatTrait, MatTraitManual, Point2f, Scalar, Size, Vector};
-use opencv::imgcodecs::{imread, IMREAD_GRAYSCALE, imwrite};
-use opencv::imgproc::{get_rotation_matrix_2d, warp_affine, WARP_INVERSE_MAP};
+use opencv::core::{MatTraitManual,
+                   Vector,
+                   rotate,
+                   ROTATE_180, ROTATE_90_CLOCKWISE, ROTATE_90_COUNTERCLOCKWISE,};
+const NO_ROTATE: i32 = -1;
+
+use opencv::imgcodecs::{imread, imwrite, IMREAD_GRAYSCALE};
 use opencv::text::{OEM_DEFAULT, PSM_AUTO};
 use opencv::text::prelude::OCRTesseract;
 
@@ -13,68 +17,41 @@ fn main() {
         panic!("Failed to read image.")
     };
 
-    let width = src_img.cols();
-    let height = src_img.rows();
-    let center = Point2f::new((width/2) as f32, (height/2) as f32);
-    let size = Size::new(width, height);
-
-    let mut angle = 0.0;
+    let rotate_code_list = vec![NO_ROTATE, ROTATE_90_CLOCKWISE, ROTATE_180, ROTATE_90_COUNTERCLOCKWISE];
+    let mut dst_rotate_code = NO_ROTATE;
     let mut max_chars_count = 0;
-    let mut angle_at_max = 0.0;
-    loop {
-        if angle > 270.0 {
-            break; // 4方向(0°, 90°, 180°, 270°)の解析が終わったら、ループを抜ける
-        }
-        let matrix;
-        let result_get_rotation_matrix_2d = get_rotation_matrix_2d(center, angle, 1.0);
-        match result_get_rotation_matrix_2d {
-            Ok(m) => matrix = m,
-            Err(code) => {
-                panic!("{}", code)
-            }
-        }
 
+    for rotate_code in rotate_code_list {
+        // 画像の回転
         let mut dst_img = src_img.clone();
-        let result_affine = warp_affine(&src_img, &mut dst_img, &matrix, size, WARP_INVERSE_MAP, BORDER_CONSTANT, Scalar::default());
-        if let Err(code) = result_affine {
-            panic!("{}", code)
-        }
+        rotate(&src_img, &mut dst_img, rotate_code).unwrap_or_else(|error| panic!("{}", error));
+        let angle_int = rotate_code_to_angle_int(rotate_code);
 
-        let filename = angle.to_string() + "_rotated.png";
+        // 回転した画像の描画
+        let filename = angle_int.to_string() + "_rotated.png";
         let filename: &str = &filename;
         imwrite(filename, &dst_img, &Vector::new()).ok();
 
+        // OCR
         let mut ocr = OCRTesseract::create("", "jpn", "", OEM_DEFAULT, PSM_AUTO)
             .unwrap_or_else(|code| panic!("{}", code));
-        let str = ocr.run(&dst_img, 0, 0).unwrap();
+        let ocr_str = ocr.run(&dst_img, 0, 0).unwrap();
 
-        println!("回転角度: {}° 文字数: {} 認識した文字 =>「{}」", angle, str.chars().count(), str);
-
-        if str.chars().count() > max_chars_count {
-            max_chars_count = str.chars().count();
-            angle_at_max = angle;
+        println!("回転角度: {}° 文字数: {} 認識した文字 =>「{}」", angle_int, ocr_str.chars().count(), ocr_str);
+        if ocr_str.chars().count() > max_chars_count {
+            max_chars_count = ocr_str.chars().count();
+            dst_rotate_code = rotate_code;
         }
-        angle += 90.0;
     }
 
-    println!("認識できた文字数が最も多かった角度: {}, 認識した文字数: {}", angle_at_max, max_chars_count);
+    let angle_at_max = rotate_code_to_angle_int(dst_rotate_code);
+    println!("認識できた文字数が最も多かった角度: {}°, 認識した文字数: {}", angle_at_max, max_chars_count);
 
-    let result_img = if angle_at_max != 0.0 {
+    // 認識できた文字数が1番多かった角度へ回転させる
+    let result_img = if dst_rotate_code != NO_ROTATE {
         println!("{}°回転します。", angle_at_max);
-        let matrix;
-        let result_get_rotation_matrix_2d = get_rotation_matrix_2d(center, angle_at_max, 1.0);
-        match result_get_rotation_matrix_2d {
-            Ok(m) => matrix = m,
-            Err(code) => {
-                panic!("{}", code)
-            }
-        }
-
         let mut dst_img = src_img.clone();
-        let result_affine = warp_affine(&src_img, &mut dst_img, &matrix, size, WARP_INVERSE_MAP, BORDER_CONSTANT, Scalar::default());
-        if let Err(code) = result_affine {
-            panic!("{}", code)
-        }
+        rotate(&src_img, &mut dst_img, dst_rotate_code).unwrap_or_else(|error| panic!("{}", error));
         dst_img
     } else {
         println!("回転の必要がありません。");
@@ -82,4 +59,14 @@ fn main() {
     };
 
     imwrite("result.png", &result_img, &Vector::new()).ok();
+}
+
+fn rotate_code_to_angle_int(code: i32) -> i32 {
+    match code {
+        NO_ROTATE => 0,
+        ROTATE_90_CLOCKWISE => 90,
+        ROTATE_180 => 180,
+        ROTATE_90_COUNTERCLOCKWISE => 270,
+        _ => panic!(),
+    }
 }
