@@ -240,6 +240,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e2e65a1a2e43cfcb47a895c4c8b10d1f4a61097f9f254f183aee60cad9c651d"
 
 [[package]]
+name = "mecab"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70851fe1fef45770a28c07790f054f62fd8c0e73cecd5fd8aa6d0a36fb078f5f"
+
+[[package]]
 name = "memchr"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -310,7 +316,9 @@ dependencies = [
 name = "orientation_correction"
 version = "0.1.0"
 dependencies = [
+ "mecab",
  "opencv",
+ "regex",
  "tesseract",
 ]
 
