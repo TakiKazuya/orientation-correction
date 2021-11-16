@@ -7,6 +7,5 @@ edition = "2018"
 
 [dependencies]
 opencv = { version = "0.53.1", features =["clang-runtime"]}
-tesseract = "0.9.0"
 mecab = "*"
 regex = "1.4.2"
